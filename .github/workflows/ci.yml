@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Pre-install Scripts
+      run: |
+        chmod +x ./bin/pre-install.sh
+        ./bin/pre-install.sh
+
+    - name: Set up PHP and PostgreSQL
+      run: |
+        sudo add-apt-repository -y ppa:ondrej/php
+        sudo apt-get update
+        sudo apt-get --yes remove postgresql\*
+        # Add the rest of your Travis CI install steps here
+
+    # You can add more steps here based on your .travis.yml file.
