@@ -2,8 +2,6 @@ name: Continuous Integration and Deployment
 
 on:
   push:
-    branches-ignore:
-      - '**'
     tags:
       - '*'
   pull_request:
@@ -20,8 +18,7 @@ jobs:
           sudo apt-get update
           sudo apt-get --yes remove postgresql\*
 
-      - name: Setup PostgreSQL if not a JavaScript test
-        if: env.TEST_SUITE != 'javascript'
+      - name: Setup PostgreSQL
         run: |
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
@@ -34,19 +31,14 @@ jobs:
           sudo chown postgres pg_hba.conf
           sudo mv pg_hba.conf /etc/postgresql/14/main
           sudo service postgresql restart 14
-        env:
-          TEST_SUITE: ${{ matrix.test_suite }}
 
   deploy:
     needs: build-and-test
     runs-on: ubuntu-20.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.event_name == 'push' && env.STAGING_DEPLOY_ON == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && env.STAGING_DEPLOY_ON == 'true'
     steps:
       - uses: actions/checkout@v2
       - name: Deploy to staging
         run: echo "Deploying to staging server..."
-
-    # Add additional deployment jobs as needed for dev and production
-
 env:
-  STAGING_DEPLOY_ON: false # Set this to true in your repository secrets or environment variables if staging deployment should run
+  STAGING_DEPLOY_ON: false # This can be set to 'true' in the GitHub repository secrets if staging deployment should run.
