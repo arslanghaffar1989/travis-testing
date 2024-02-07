@@ -13,11 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Pre-install Scripts
-      run: |
-        chmod +x ./bin/pre-install.sh
-        ./bin/pre-install.sh
-
+    
     - name: Set up PHP and PostgreSQL
       run: |
         sudo add-apt-repository -y ppa:ondrej/php
