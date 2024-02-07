@@ -5,6 +5,20 @@ on: [push, pull_request]
 jobs:
   setup-and-test:
     runs-on: ubuntu-20.04
+    services:
+      postgresql:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     strategy:
       matrix:
         php-version: ['8.0.9'] # Define other PHP versions here if needed
@@ -16,21 +30,26 @@ jobs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: ${{ matrix.php-version }}
+        extensions: mbstring, pdo_pgsql  # Add necessary extensions here
+        ini-values: post_max_size=256M, upload_max_filesize=256M  # Set ini configs
+        coverage: none
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libxml2-dev
-        # Add other dependencies here
+    - name: Check PHP Version
+      run: php --version
 
-    - name: Start PostgreSQL service
+    - name: Check PostgreSQL Client Version
+      run: psql --version
+
+    - name: Check PostgreSQL Server Version
       run: |
-        sudo service postgresql start
+        PGPASSWORD=postgres psql -h localhost -U postgres -c "SELECT version();"
+
+    # Place your additional setup and test commands here
+    # ...
 
   deploy-to-dev:
     runs-on: ubuntu-20.04
     needs: setup-and-test
-    if: contains(github.ref, 'refs/heads/dev')
     steps:
     - uses: actions/checkout@v2
     - name: Deploy to Development
@@ -41,7 +60,6 @@ jobs:
   deploy-to-staging:
     runs-on: ubuntu-20.04
     needs: setup-and-test
-    if: github.ref == 'refs/heads/master'
     steps:
     - uses: actions/checkout@v2
     - name: Deploy to Staging
@@ -52,7 +70,6 @@ jobs:
   deploy-to-production:
     runs-on: ubuntu-20.04
     needs: setup-and-test
-    if: startsWith(github.ref, 'refs/tags/')
     steps:
     - uses: actions/checkout@v2
     - name: Deploy to Production
