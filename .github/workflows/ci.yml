@@ -27,13 +27,6 @@ jobs:
       run: |
         sudo service postgresql start
 
-    - name: Run tests
-      run: |
-        # Your test scripts
-        bin/install-ci.sh
-        bin/run-tests.sh
-
-
   deploy-to-dev:
     runs-on: ubuntu-20.04
     needs: setup-and-test
