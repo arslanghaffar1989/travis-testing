@@ -59,16 +59,3 @@ jobs:
       run: |
         echo "Deploying to production server..."
         # Your deployment script for production
-
-  notify-slack:
-    runs-on: ubuntu-20.04
-    if: always() # This ensures notification even if the previous steps failed
-    steps:
-    - name: Notify Slack
-      uses: rtCamp/action-slack-notify@v2
-      env:
-        SLACK_CHANNEL: your-slack-channel
-        SLACK_COLOR: '#ff0000' # Change color based on success or failure
-        SLACK_MESSAGE: 'Deployment to production completed!'
-        SLACK_TITLE: 'Deployment Status'
-        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }} # Set this in your repo secrets
