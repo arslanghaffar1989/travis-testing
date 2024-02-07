@@ -1,61 +1,52 @@
-name: CI
+name: Continuous Integration and Deployment
 
 on:
   push:
-    branches: 
+    branches-ignore:
       - '**'
-    tags-ignore:
-      - '**'
+    tags:
+      - '*'
   pull_request:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-20.04
-    env:
-      TEST_SUITE: ${{ matrix.test_suite }}
-    strategy:
-      matrix:
-        test_suite: ['default', 'javascript']
-        include:
-          - test_suite: 'default'
-            php_version: '7.4'
-          - test_suite: 'javascript'
-            node_version: '14'
-
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
+      
+       - name: Setup PHP and remove PostgreSQL
+        run: |
+          sudo add-apt-repository -y ppa:ondrej/php
+          sudo apt-get update
+          sudo apt-get --yes remove postgresql\*
 
-    - name: Set up PHP and PostgreSQL
-      if: matrix.test_suite != 'javascript'
-      run: |
-        sudo add-apt-repository -y ppa:ondrej/php
-        sudo apt-get update
-        sudo apt-get --yes remove postgresql\*
-        sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-        wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-        sudo apt -y update
-        sudo apt-get install -y postgresql-14 postgresql-client-14 libxml2-dev
-        # Configure PostgreSQL as needed here...
-
-    - name: Set up Node.js
-      if: matrix.test_suite == 'javascript'
-      uses: actions/setup-node@v2
-      with:
-        node-version: '${{ matrix.node_version }}'
-    
-    # Add additional steps for your build and test process here
-    # ...
+      - name: Setup PostgreSQL if not a JavaScript test
+        if: env.TEST_SUITE != 'javascript'
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt -y update
+          sudo apt-get install -y postgresql-14 postgresql-client-14 libxml2-dev
+          sed -e 's/^port.*/port = 5432/' /etc/postgresql/14/main/postgresql.conf > postgresql.conf
+          sudo chown postgres postgresql.conf
+          sudo mv postgresql.conf /etc/postgresql/14/main
+          sudo sed '0,/127.0.0.1/{s/scram-sha-256/trust/}' /etc/postgresql/14/main/pg_hba.conf > pg_hba.conf
+          sudo chown postgres pg_hba.conf
+          sudo mv pg_hba.conf /etc/postgresql/14/main
+          sudo service postgresql restart 14
+        env:
+          TEST_SUITE: ${{ matrix.test_suite }}
 
   deploy:
-    needs: build
+    needs: build-and-test
     runs-on: ubuntu-20.04
-    if: ${{ github.ref != 'refs/heads/master' && startsWith(github.ref, 'refs/heads/dev@') }}
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.event_name == 'push' && env.STAGING_DEPLOY_ON == 'true'
     steps:
-    - uses: actions/checkout@v2
-    - name: Deploy to Dev Server
-      run: |
-        # Your deployment script for dev server
-        echo "Deploying to dev server..."
+      - uses: actions/checkout@v2
+      - name: Deploy to staging
+        run: echo "Deploying to staging server..."
 
-    # Define similar steps for staging and production environments
-    # ...
+    # Add additional deployment jobs as needed for dev and production
+
+env:
+  STAGING_DEPLOY_ON: false # Set this to true in your repository secrets or environment variables if staging deployment should run
