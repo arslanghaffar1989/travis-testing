@@ -36,13 +36,13 @@ jobs:
         KEY_NAME: arslan-test-key
       run: |
         instance_id=$(aws ec2 run-instances --image-id $AMI_ID --count 1 --instance-type $INSTANCE_TYPE --key-name $KEY_NAME --security-group-ids $SECURITY_GROUP_ID --subnet-id $SUBNET_ID --query 'Instances[0].InstanceId' --output text)
-        echo "Instance ID: $instance_id"
-        echo "Instance ID: $instance_id" >> $GITHUB_ENV
+        echo "INSTANCE_ID=$instance_id" >> $GITHUB_ENV
         # Wait for the instance to enter the running state
         aws ec2 wait instance-running --instance-ids $instance_id
         # Output the public IP of the instance
         public_ip=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
         echo "Instance Public IP: $public_ip"
+
 
     # ... other steps ...
 
@@ -50,8 +50,6 @@ jobs:
     - name: Cleanup
       if: always()
       run: |
-        # Fetch the instance ID from the environment variable
-        instance_id=$(cat $GITHUB_ENV | grep Instance_ID | cut -d ' ' -f 2)
-        aws ec2 terminate-instances --instance-ids $instance_id
-        # Wait for the instance to be terminated
-        aws ec2 wait instance-terminated --instance-ids $instance_id
+        aws ec2 terminate-instances --instance-ids $INSTANCE_ID
+        aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
+
