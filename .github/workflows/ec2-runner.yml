@@ -1,63 +1,42 @@
-name: EC2 runner workflow
+name: EC2 Runner Management
 
-on: [push]
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Start or Stop the EC2 Runner'
+        required: true
+        default: 'start'  # Allowed values: start, stop
 
 jobs:
-  build:
-    runs-on: [self-hosted, linux]
-
+  manage-ec2-instance:
+    runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-
-    # Check for AWS CLI and install if not present
-    - name: Install/update AWS CLI
+    - name: Start EC2 Instance
+      if: github.event.inputs.action == 'start'
       run: |
-        if aws --version; then
-          echo "AWS CLI is already installed. Updating if necessary..."
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip -o awscliv2.zip
-          sudo ./aws/install --update
-        else
-          echo "AWS CLI not found. Installing..."
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install
-        fi
-        aws --version
-
-    # Set up AWS credentials
-    - name: Set up AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ca-central-1
-
-    # Start EC2 instance
-    - name: Start EC2 instance
-      env:
-        AMI_ID: ami-0d88304f9e96313f5
-        INSTANCE_TYPE: t2.micro
-        SECURITY_GROUP_ID: sg-0c8fda260d91f58dd
-        SUBNET_ID: subnet-03ca8cb69c5f65f84
-        KEY_NAME: arslan-test-key
-      run: |
-        instance_id=$(aws ec2 run-instances --image-id $AMI_ID --count 1 --instance-type $INSTANCE_TYPE --key-name $KEY_NAME --security-group-ids $SECURITY_GROUP_ID --subnet-id $SUBNET_ID --query 'Instances[0].InstanceId' --output text)
-        echo "Instance ID: $instance_id"
-        echo "INSTANCE_ID=$instance_id" >> $GITHUB_ENV
-        # Wait for the instance to enter the running state
+        instance_id=$(aws ec2 run-instances --image-id ami-0d88304f9e96313f5 --instance-type t2.micro --key-name arslan-test-key --security-group-ids sg-0c8fda260d91f58dd --subnet-id subnet-03ca8cb69c5f65f84 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=ec2-ci-runner}]' --query 'Instances[0].InstanceId' --output text)
+        echo "Started EC2 Instance: $instance_id"
         aws ec2 wait instance-running --instance-ids $instance_id
-        # Output the public IP of the instance
         public_ip=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
         echo "Instance Public IP: $public_ip"
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ca-central-1
 
-    # ... other steps including testing ...
-
-       # Cleanup
-    - name: Cleanup
-      if: always()
+    - name: Stop EC2 Instance
+      if: github.event.inputs.action == 'stop'
       run: |
-        instance_id=$(echo $INSTANCE_ID)
-        aws ec2 terminate-instances --instance-ids $instance_id
-        aws ec2 wait instance-terminated --instance-ids $instance_id
+        instance_id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=ec2-ci-runner" "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
+        if [ ! -z "$instance_id" ]; then
+          aws ec2 terminate-instances --instance-ids $instance_id
+          echo "Stopped EC2 Instance: $instance_id"
+          aws ec2 wait instance-terminated --instance-ids $instance_id
+        else
+          echo "No running EC2 instance with the specified tags found."
+        fi
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ca-central-1
