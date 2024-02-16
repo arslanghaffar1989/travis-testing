@@ -10,8 +10,8 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    # Check for existing AWS CLI installation and update or install as necessary
-    - name: Install or update AWS CLI
+    # Check for AWS CLI and install if not present
+    - name: Install/update AWS CLI
       run: |
         if aws --version; then
           echo "AWS CLI is already installed. Updating if necessary..."
@@ -44,22 +44,20 @@ jobs:
         KEY_NAME: arslan-test-key
       run: |
         instance_id=$(aws ec2 run-instances --image-id $AMI_ID --count 1 --instance-type $INSTANCE_TYPE --key-name $KEY_NAME --security-group-ids $SECURITY_GROUP_ID --subnet-id $SUBNET_ID --query 'Instances[0].InstanceId' --output text)
-        echo "instance_id=$instance_id" >> $GITHUB_ENV
+        echo "Instance ID: $instance_id"
+        echo "INSTANCE_ID=$instance_id" >> $GITHUB_ENV
         # Wait for the instance to enter the running state
         aws ec2 wait instance-running --instance-ids $instance_id
         # Output the public IP of the instance
         public_ip=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
         echo "Instance Public IP: $public_ip"
 
-    # ... other steps ...
+    # ... other steps including testing ...
 
-    # Cleanup
+       # Cleanup
     - name: Cleanup
       if: always()
       run: |
-        instance_id=${{ env.instance_id }}
-        if [ -n "$instance_id" ]; then
-          aws ec2 terminate-instances --instance-ids $instance_id
-          aws ec2 wait instance-terminated --instance-ids $instance_id
-        else
-          echo "No instance ID available for termination."
+        instance_id=$(echo $INSTANCE_ID)
+        aws ec2 terminate-instances --instance-ids $instance_id
+        aws ec2 wait instance-terminated --instance-ids $instance_id
