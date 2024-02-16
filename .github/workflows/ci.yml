@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   setup-and-test:
-    runs-on: ubuntu-20.04
+    runs-on: [self-hosted, linux, x64]  # This line is changed
     services:
       postgresql:
         image: postgres:14
