@@ -1,0 +1,78 @@
+name: Continuous Integration
+
+on: [push, pull_request]
+
+jobs:
+  setup-and-test:
+    runs-on: [self-hosted, linux, x64]  # This line is changed
+    services:
+      postgresql:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    strategy:
+      matrix:
+        php-version: ['8.0.9'] # Define other PHP versions here if needed
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        extensions: mbstring, pdo_pgsql  # Add necessary extensions here
+        ini-values: post_max_size=256M, upload_max_filesize=256M  # Set ini configs
+        coverage: none
+
+    - name: Check PHP Version
+      run: php --version
+
+    - name: Check PostgreSQL Client Version
+      run: psql --version
+
+    - name: Check PostgreSQL Server Version
+      run: |
+        PGPASSWORD=postgres psql -h localhost -U postgres -c "SELECT version();"
+
+    # Place your additional setup and test commands here
+    # ...
+
+  deploy-to-dev:
+    runs-on: ubuntu-20.04
+    needs: setup-and-test
+    steps:
+    - uses: actions/checkout@v2
+    - name: Deploy to Development
+      run: |
+        echo "Deploying to development server..."
+        # Your deployment script for dev
+
+  deploy-to-staging:
+    runs-on: ubuntu-20.04
+    needs: setup-and-test
+    steps:
+    - uses: actions/checkout@v2
+    - name: Deploy to Staging
+      run: |
+        echo "Deploying to staging server..."
+        # Your deployment script for staging
+
+  deploy-to-production:
+    runs-on: ubuntu-20.04
+    needs: setup-and-test
+    steps:
+    - uses: actions/checkout@v2
+    - name: Deploy to Production
+      run: |
+        echo "Deploying to production server..."
+        # Your deployment script for production
