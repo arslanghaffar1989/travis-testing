@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   setup-and-test:
-    runs-on: [self-hosted, linux, x64]  # This line is changed
+    runs-on: [self-hosted, linux, x64, ec2-ci-runner]  # Ensure this matches the labels of your EC2 self-hosted runner
     services:
       postgresql:
         image: postgres:14
@@ -21,7 +21,7 @@ jobs:
           --health-retries 5
     strategy:
       matrix:
-        php-version: ['8.0.9'] # Define other PHP versions here if needed
+        php-version: ['8.0.9']
 
     steps:
     - uses: actions/checkout@v2
@@ -30,8 +30,8 @@ jobs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: ${{ matrix.php-version }}
-        extensions: mbstring, pdo_pgsql  # Add necessary extensions here
-        ini-values: post_max_size=256M, upload_max_filesize=256M  # Set ini configs
+        extensions: mbstring, pdo_pgsql
+        ini-values: post_max_size=256M, upload_max_filesize=256M  # Adjust as necessary
         coverage: none
 
     - name: Check PHP Version
@@ -44,18 +44,22 @@ jobs:
       run: |
         PGPASSWORD=postgres psql -h localhost -U postgres -c "SELECT version();"
 
-    # Place your additional setup and test commands here
-    # ...
+    # Add your tests and other CI steps here
+    # Example: Run PHPUnit tests
+    - name: Run PHPUnit Tests
+      run: ./vendor/bin/phpunit
 
   deploy-to-dev:
-    runs-on: ubuntu-20.04
     needs: setup-and-test
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
-    - name: Deploy to Development
+    - name: Deploy to Development Environment
       run: |
         echo "Deploying to development server..."
-        # Your deployment script for dev
+        # Insert your deployment script here
+
+  # Define other deployment jobs (e.g., deploy-to-staging, deploy-to-production) as needed
 
   deploy-to-staging:
     runs-on: ubuntu-20.04
