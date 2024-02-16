@@ -1,0 +1,63 @@
+name: EC2 runner workflow
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    # Check for AWS CLI and install if not present
+    - name: Install/update AWS CLI
+      run: |
+        if aws --version; then
+          echo "AWS CLI is already installed. Updating if necessary..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -o awscliv2.zip
+          sudo ./aws/install --update
+        else
+          echo "AWS CLI not found. Installing..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+        fi
+        aws --version
+
+    # Set up AWS credentials
+    - name: Set up AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ca-central-1
+
+    # Start EC2 instance
+    - name: Start EC2 instance
+      env:
+        AMI_ID: ami-0d88304f9e96313f5
+        INSTANCE_TYPE: t2.micro
+        SECURITY_GROUP_ID: sg-0c8fda260d91f58dd
+        SUBNET_ID: subnet-03ca8cb69c5f65f84
+        KEY_NAME: arslan-test-key
+      run: |
+        instance_id=$(aws ec2 run-instances --image-id $AMI_ID --count 1 --instance-type $INSTANCE_TYPE --key-name $KEY_NAME --security-group-ids $SECURITY_GROUP_ID --subnet-id $SUBNET_ID --query 'Instances[0].InstanceId' --output text)
+        echo "Instance ID: $instance_id"
+        echo "INSTANCE_ID=$instance_id" >> $GITHUB_ENV
+        # Wait for the instance to enter the running state
+        aws ec2 wait instance-running --instance-ids $instance_id
+        # Output the public IP of the instance
+        public_ip=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+        echo "Instance Public IP: $public_ip"
+
+    # ... other steps including testing ...
+
+    # Cleanup
+    - name: Cleanup
+      if: always()
+      run: |
+        instance_id=$(echo $INSTANCE_ID)
+        aws ec2 terminate-instances --instance-ids $instance_id
+        aws ec2 wait instance-terminated --instance
