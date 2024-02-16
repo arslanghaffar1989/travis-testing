@@ -1,30 +1,60 @@
-name: EC2 Runner Management
-
-on:
-  workflow_dispatch:
-    inputs:
-      action:
-        description: 'Start or Stop the EC2 Runner'
-        required: true
-        default: 'start'
-
+name: do-the-job
+on: pull_request
 jobs:
-  manage-ec2-instance:
+  start-runner:
+    name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
     steps:
-    - name: Start or Stop EC2 Instance
-      run: |
-        if [ "${{ github.event.inputs.action }}" == "start" ]; then
-          echo "Starting EC2 instance..."
-          instance_id=$(aws ec2 run-instances --image-id ami-0d88304f9e96313f5 --instance-type t2.micro --key-name arslan-test-key --security-group-ids sg-0c8fda260d91f58dd --subnet-id subnet-03ca8cb69c5f65f84 --query 'Instances[0].InstanceId' --output text)
-          echo "::set-output name=instance_id::$instance_id"
-          # Add here the code to install and configure the GitHub runner
-        else
-          echo "Stopping EC2 instance..."
-          instance_id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=ec2-ci-runner" "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
-          aws ec2 terminate-instances --instance-ids $instance_id
-        fi
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ca-central-1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ami-123
+          ec2-instance-type: t3.nano
+          subnet-id: subnet-123
+          security-group-id: sg-123
+          iam-role-name: my-role-name # optional, requires additional permissions
+          aws-resource-tags: > # optional, requires additional permissions
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+  do-the-job:
+    name: Do the job on the runner
+    needs: start-runner # required to start the main job when the runner is ready
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
+    steps:
+      - name: Hello World
+        run: echo 'Hello World!'
+  stop-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-runner # required to get output from the start-runner job
+      - do-the-job # required to wait when the main job is done
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
