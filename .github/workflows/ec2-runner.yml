@@ -18,6 +18,7 @@ jobs:
           echo "Starting EC2 instance..."
           instance_id=$(aws ec2 run-instances --image-id ami-0d88304f9e96313f5 --instance-type t2.micro --key-name arslan-test-key --security-group-ids sg-0c8fda260d91f58dd --subnet-id subnet-03ca8cb69c5f65f84 --query 'Instances[0].InstanceId' --output text)
           echo "::set-output name=instance_id::$instance_id"
+          # Add here the code to install and configure the GitHub runner
         else
           echo "Stopping EC2 instance..."
           instance_id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=ec2-ci-runner" "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
