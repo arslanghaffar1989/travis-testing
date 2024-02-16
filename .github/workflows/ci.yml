@@ -33,13 +33,7 @@ jobs:
     - run: PGPASSWORD=postgres psql -h localhost -U postgres -c "SELECT version();"
     # Define additional test and deployment steps as required
 
-  deploy-to-dev:
-    needs: setup-and-test
-    runs-on: ubuntu-20.04
-    steps:
-    - uses: actions/checkout@v2
-    - run: echo "Deploying to development server..."
-    # Define your deployment steps
+  # The rest of your deployment jobs (deploy-to-dev, deploy-to-staging, deploy-to-production)
 
   # Define deploy-to-staging and deploy-to-production jobs as necessary
 
