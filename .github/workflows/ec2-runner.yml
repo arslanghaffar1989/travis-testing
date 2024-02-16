@@ -6,35 +6,22 @@ on:
       action:
         description: 'Start or Stop the EC2 Runner'
         required: true
-        default: 'start'  # Allowed values: start, stop
+        default: 'start'
 
 jobs:
   manage-ec2-instance:
     runs-on: ubuntu-latest
     steps:
-    - name: Start EC2 Instance
-      if: github.event.inputs.action == 'start'
+    - name: Start or Stop EC2 Instance
       run: |
-        instance_id=$(aws ec2 run-instances --image-id ami-0d88304f9e96313f5 --instance-type t2.micro --key-name arslan-test-key --security-group-ids sg-0c8fda260d91f58dd --subnet-id subnet-03ca8cb69c5f65f84 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=ec2-ci-runner}]' --query 'Instances[0].InstanceId' --output text)
-        echo "Started EC2 Instance: $instance_id"
-        aws ec2 wait instance-running --instance-ids $instance_id
-        public_ip=$(aws ec2 describe-instances --instance-ids $instance_id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-        echo "Instance Public IP: $public_ip"
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ca-central-1
-
-    - name: Stop EC2 Instance
-      if: github.event.inputs.action == 'stop'
-      run: |
-        instance_id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=ec2-ci-runner" "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
-        if [ ! -z "$instance_id" ]; then
-          aws ec2 terminate-instances --instance-ids $instance_id
-          echo "Stopped EC2 Instance: $instance_id"
-          aws ec2 wait instance-terminated --instance-ids $instance_id
+        if [ "${{ github.event.inputs.action }}" == "start" ]; then
+          echo "Starting EC2 instance..."
+          instance_id=$(aws ec2 run-instances --image-id ami-0d88304f9e96313f5 --instance-type t2.micro --key-name arslan-test-key --security-group-ids sg-0c8fda260d91f58dd --subnet-id subnet-03ca8cb69c5f65f84 --query 'Instances[0].InstanceId' --output text)
+          echo "::set-output name=instance_id::$instance_id"
         else
-          echo "No running EC2 instance with the specified tags found."
+          echo "Stopping EC2 instance..."
+          instance_id=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=ec2-ci-runner" "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
+          aws ec2 terminate-instances --instance-ids $instance_id
         fi
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
